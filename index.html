@@ -1,83 +1,537 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cielo di Pensieri - Thought Cloud</title>
-    <!-- Load Tailwind CSS via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Custom Styles -->
-    <link rel="stylesheet" href="style.css">
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken,
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { Cloud, Send, Download, Sparkles, X, User, Mail, MessageSquare, Lock, Unlock } from 'lucide-react';
+
+// --- Firebase Configuration ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// --- Helper: Generate Deterministic Random Numbers ---
+const pseudoRandom = (seed) => {
+  let value = 0;
+  for (let i = 0; i < seed.length; i++) {
+    value = (value << 5) - value + seed.charCodeAt(i);
+    value |= 0;
+  }
+  return Math.abs(value);
+};
+
+// --- Component: Fluffy Cloud ---
+const FluffyCloud = ({ text, count, index }) => {
+  const scale = Math.min(1 + (count - 1) * 0.15, 2.5);
+  
+  const puffs = useMemo(() => {
+    const seed = pseudoRandom(text + index);
+    const numPuffs = 5 + (seed % 4); 
+    const generatedPuffs = [];
     
-    <!-- Use Inter font family -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            /* Using Playfair Display for the serif look */
+    for (let i = 0; i < numPuffs; i++) {
+      const r1 = pseudoRandom(text + i + 'x');
+      const r2 = pseudoRandom(text + i + 'y');
+      const r3 = pseudoRandom(text + i + 's');
+      
+      generatedPuffs.push({
+        left: `${(r1 % 80) + 10}%`,
+        top: `${(r2 % 80) + 10}%`,
+        scale: 1 + (r3 % 10) / 10,
+        delay: (r1 % 1000) / 1000 
+      });
+    }
+    return generatedPuffs;
+  }, [text, index]);
+
+  return (
+    <div 
+      className="relative flex items-center justify-center p-6 m-4 group select-none animate-float"
+      style={{ 
+        transform: `scale(${scale})`,
+        zIndex: Math.floor(scale * 10),
+        animationDuration: `${6 + (index % 4)}s`,
+        animationDelay: `${index * 0.2}s`
+      }}
+    >
+      <div className="absolute inset-0 pointer-events-none">
+        {puffs.map((puff, i) => (
+          <div
+            key={i}
+            className="absolute bg-white/90 shadow-sm rounded-full transition-transform duration-700"
+            style={{
+              left: puff.left,
+              top: puff.top,
+              width: '60px',
+              height: '60px',
+              transform: `translate(-50%, -50%) scale(${puff.scale})`,
+              boxShadow: 'inset -2px -2px 6px rgba(0,0,0,0.05)'
+            }}
+          />
+        ))}
+        <div className="absolute inset-2 bg-white/90 rounded-[3rem] shadow-sm" />
+      </div>
+
+      <div className="relative z-10 text-center max-w-[200px]">
+        <span className="font-serif text-slate-800 leading-snug drop-shadow-sm">
+          {text}
+        </span>
+        {count > 1 && (
+          <div className="absolute -top-6 -right-6 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md scale-75 animate-bounce">
+            x{count}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [rawPhrases, setRawPhrases] = useState([]); 
+  const [loading, setLoading] = useState(true);
+  
+  // UI State
+  const [showForm, setShowForm] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  
+  // Admin Auth State
+  const [adminPassword, setAdminPassword] = useState('');
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phrase: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(null);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
-    </style>
-</head>
-<body class="relative min-h-screen w-full overflow-hidden selection:bg-pink-200">
+      } catch (err) {
+        console.error("Auth error:", err);
+      }
+    };
+    initAuth();
+    
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
-    <!-- Background Sky -->
-    <div class="fixed inset-0 z-0 bg-gradient-to-br from-[#A7C7E7] via-[#E2EAF4] to-[#FAD4C0] pointer-events-none">
-        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/aged-paper.png')] opacity-20 mix-blend-multiply"></div>
-    </div>
+  useEffect(() => {
+    if (!user) return;
 
-    <!-- Main Application Container -->
-    <div id="app-root" class="relative z-10 w-full min-h-screen flex flex-col items-center">
-        <!-- Header will be inserted here by JS -->
-        <header id="header-container" class="w-full p-6 flex justify-between items-center z-50"></header>
+    const dataRef = collection(db, 'artifacts', appId, 'public', 'data', 'phrase-clouds');
+    const q = query(dataRef);
 
-        <!-- Admin Panel will be inserted here by JS -->
-        <div id="admin-panel-container" class="w-full"></div>
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const loaded = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setRawPhrases(loaded);
+      setLoading(false);
+    }, (error) => {
+      console.error("Data fetch error:", error);
+      setLoading(false);
+    });
 
-        <!-- Main Cloud Display Area -->
-        <main id="cloud-display-area" class="w-full flex-grow flex items-center justify-center p-4">
-            <!-- Loading message / Clouds will be inserted here by JS -->
-            <div id="loading-message" class="text-slate-500 animate-pulse font-serif italic text-xl">
-                Initializing app and fetching data...
-            </div>
-        </main>
-    </div>
+    return () => unsubscribe();
+  }, [user]);
 
-    <!-- Modals Container (Submission and Password) -->
-    <div id="modals-container">
-        <!-- Modals will be rendered here by JS -->
-    </div>
-
-    <!-- Import Lucide Icons (used by JS) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
-    <!-- Load Firebase SDKs as modules -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken,
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            onSnapshot, 
-            query, 
-            serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Expose Firebase functions globally for script.js (since it's not a true module context)
-        // In a GitHub Pages scenario, using the window object is often the most straightforward way
-        window.firebase = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp
+  const cloudData = useMemo(() => {
+    const map = {};
+    rawPhrases.forEach(item => {
+      const key = item.phrase.toLowerCase().trim();
+      if (!map[key]) {
+        map[key] = {
+          text: item.phrase.trim(),
+          count: 0,
+          ids: [],
+          firstTimestamp: item.timestamp
         };
-    </script>
+      }
+      map[key].count += 1;
+      map[key].ids.push(item.id);
+    });
+    return Object.values(map).sort((a, b) => pseudoRandom(b.text) - pseudoRandom(a.text));
+  }, [rawPhrases]);
 
-    <!-- Load the main application logic -->
-    <script type="module" src="script.js"></script>
+  // --- Handlers ---
 
-</body>
-</html>
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!user || !formData.phrase.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const dataRef = collection(db, 'artifacts', appId, 'public', 'data', 'phrase-clouds');
+      await addDoc(dataRef, {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phrase: formData.phrase.trim(),
+        timestamp: serverTimestamp(),
+        authorId: user.uid
+      });
+      
+      setFormData({ name: '', email: '', phrase: '' });
+      setSubmitStatus('success');
+      setTimeout(() => {
+        setSubmitStatus(null);
+        setShowForm(false);
+      }, 2000);
+    } catch (err) {
+      console.error("Submission error:", err);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSecretClick = () => {
+    if (isAdminAuthenticated) {
+      setShowAdmin(!showAdmin);
+    } else {
+      setShowPasswordModal(true);
+      setAuthError(false);
+      setAdminPassword('');
+    }
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (adminPassword.toLowerCase() === 'cloud') {
+      setIsAdminAuthenticated(true);
+      setShowPasswordModal(false);
+      setShowAdmin(true);
+    } else {
+      setAuthError(true);
+      setAdminPassword('');
+    }
+  };
+
+  const downloadCSV = () => {
+    if (rawPhrases.length === 0) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,Timestamp,Name,Email,Phrase\n";
+    const sortedForExport = [...rawPhrases].sort((a,b) => {
+      return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
+    });
+
+    sortedForExport.forEach(row => {
+      const date = row.timestamp ? new Date(row.timestamp.seconds * 1000).toLocaleString() : '';
+      const cleanPhrase = row.phrase.replace(/"/g, '""');
+      const cleanName = row.name.replace(/"/g, '""');
+      const cleanEmail = row.email.replace(/"/g, '""');
+      csvContent += `"${date}","${cleanName}","${cleanEmail}","${cleanPhrase}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "phrase_cloud_data.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="relative min-h-screen w-full overflow-hidden font-sans selection:bg-pink-200">
+      
+      {/* Background Sky */}
+      <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#A7C7E7] via-[#E2EAF4] to-[#FAD4C0] pointer-events-none">
+         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/aged-paper.png')] opacity-20 mix-blend-multiply"></div>
+      </div>
+
+      {/* Main Container */}
+      <div className="relative z-10 w-full min-h-screen flex flex-col items-center">
+        
+        {/* Header */}
+        <header className="w-full p-6 flex justify-between items-center z-50">
+          <div className="flex items-center gap-2 bg-white/30 backdrop-blur-md px-4 py-2 rounded-full shadow-sm border border-white/40">
+            {/* SECRET TRIGGER: The Cloud Icon */}
+            <button 
+              onClick={handleSecretClick}
+              className="hover:text-blue-500 transition-colors cursor-pointer focus:outline-none"
+              title="Secret Admin Access"
+            >
+              {isAdminAuthenticated ? (
+                <Unlock className="text-green-600 drop-shadow-md" size={24} />
+              ) : (
+                <Cloud className="text-white drop-shadow-md" size={24} fill="currentColor" />
+              )}
+            </button>
+            <h1 className="text-xl font-serif text-slate-700 font-medium">
+              Cielo di Pensieri
+            </h1>
+          </div>
+          
+          <button 
+            onClick={() => setShowForm(true)}
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-5 py-2 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 font-medium"
+          >
+            <Sparkles size={16} />
+            Add Cloud
+          </button>
+        </header>
+
+        {/* Admin / Data Panel (Only visible after password) */}
+        {showAdmin && isAdminAuthenticated && (
+          <div className="w-full max-w-4xl mx-auto mt-4 p-6 bg-white/80 backdrop-blur-xl rounded-3xl border border-white/50 shadow-2xl animate-in slide-in-from-top-4 z-50">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <Lock size={18} className="text-green-600" /> Admin Data
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Total Submissions: {rawPhrases.length} | Unique Phrases: {cloudData.length}
+                </p>
+              </div>
+              <button 
+                onClick={downloadCSV}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-green-700 transition-colors shadow-md"
+              >
+                <Download size={16} />
+                Download CSV
+              </button>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white/50">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-100 sticky top-0 z-10">
+                  <tr>
+                    <th className="p-3 font-semibold text-slate-600">Time</th>
+                    <th className="p-3 font-semibold text-slate-600">Name</th>
+                    <th className="p-3 font-semibold text-slate-600">Email</th>
+                    <th className="p-3 font-semibold text-slate-600">Phrase</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rawPhrases.length === 0 ? (
+                    <tr><td colSpan={4} className="p-4 text-center opacity-50">No data yet</td></tr>
+                  ) : (
+                    [...rawPhrases].sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(p => (
+                      <tr key={p.id} className="hover:bg-blue-50/50 transition-colors">
+                        <td className="p-3 text-xs text-slate-500">
+                           {p.timestamp ? new Date(p.timestamp.seconds * 1000).toLocaleTimeString() : '-'}
+                        </td>
+                        <td className="p-3 font-medium">{p.name}</td>
+                        <td className="p-3 text-slate-500">{p.email}</td>
+                        <td className="p-3">{p.phrase}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="mt-4 text-center">
+               <button onClick={() => setShowAdmin(false)} className="text-xs text-slate-500 hover:underline">
+                 Hide Panel
+               </button>
+            </div>
+          </div>
+        )}
+
+        {/* The Sky (Main Display) */}
+        <main className="w-full flex-grow flex items-center justify-center p-4">
+          {loading ? (
+            <div className="text-slate-500 animate-pulse font-serif italic text-xl">
+              Painting the sky...
+            </div>
+          ) : cloudData.length === 0 ? (
+            <div className="text-center opacity-60">
+              <Cloud size={80} className="mx-auto mb-4 text-white drop-shadow-lg" />
+              <p className="text-2xl font-serif text-slate-700">The sky is waiting for your thoughts.</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-center content-center w-full max-w-7xl gap-8 pb-20">
+              {cloudData.map((data, idx) => (
+                <FluffyCloud 
+                  key={idx} 
+                  text={data.text} 
+                  count={data.count} 
+                  index={idx} 
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+            onClick={() => setShowPasswordModal(false)}
+          ></div>
+          <div className="relative bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm animate-in zoom-in-95">
+             <h3 className="text-lg font-bold text-slate-800 mb-2">Admin Access</h3>
+             <p className="text-sm text-slate-500 mb-4">Enter password to view data.</p>
+             <form onSubmit={handlePasswordSubmit}>
+               <input 
+                 autoFocus
+                 type="password" 
+                 className="w-full p-3 border border-slate-300 rounded-lg mb-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                 placeholder="Password"
+                 value={adminPassword}
+                 onChange={(e) => setAdminPassword(e.target.value)}
+               />
+               {authError && <p className="text-red-500 text-xs mb-2">Incorrect password</p>}
+               <div className="flex justify-end gap-2 mt-2">
+                 <button 
+                   type="button"
+                   onClick={() => setShowPasswordModal(false)}
+                   className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                   type="submit"
+                   className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm hover:bg-slate-900"
+                 >
+                   Unlock
+                 </button>
+               </div>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Submission Modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" 
+            onClick={() => setShowForm(false)}
+          ></div>
+          
+          <div className="relative bg-white/80 backdrop-blur-xl w-full max-w-lg rounded-[2rem] shadow-2xl p-8 animate-in zoom-in-95 duration-200 border-2 border-white/60">
+            <button 
+              onClick={() => setShowForm(false)}
+              className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <h2 className="text-3xl font-serif text-slate-800 mb-2">Create a Cloud</h2>
+            <p className="text-slate-600 mb-6 font-serif italic">What is on your mind?</p>
+
+            {submitStatus === 'success' ? (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center text-green-800 flex flex-col items-center animate-in fade-in zoom-in">
+                <Cloud className="text-green-500 mb-4 drop-shadow-md" size={64} fill="currentColor" />
+                <p className="font-serif text-xl">Your thought is now floating.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-4">
+                  <div className="relative group">
+                    <User className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                    <input
+                      required
+                      type="text"
+                      name="name"
+                      placeholder="Your Name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      className="w-full pl-12 pr-4 py-3 bg-white/60 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+                  
+                  <div className="relative group">
+                    <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                    <input
+                      required
+                      type="email"
+                      name="email"
+                      placeholder="Your Email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="w-full pl-12 pr-4 py-3 bg-white/60 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  <div className="relative group">
+                    <MessageSquare className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                    <textarea
+                      required
+                      name="phrase"
+                      placeholder="Type your sentence here..."
+                      value={formData.phrase}
+                      onChange={handleInputChange}
+                      maxLength={150}
+                      rows={3}
+                      className="w-full pl-12 pr-4 py-3 bg-white/60 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all placeholder:text-slate-400 resize-none"
+                    />
+                    <div className="text-right text-xs text-slate-400 mt-1 font-medium">
+                      {formData.phrase.length}/150
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`
+                    w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg
+                    flex items-center justify-center gap-2
+                    transition-all transform active:scale-95 hover:shadow-xl
+                    ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-400 to-indigo-500 hover:from-blue-500 hover:to-indigo-600'}
+                  `}
+                >
+                  {isSubmitting ? 'Floating...' : (
+                    <>
+                      Release into Sky <Send size={18} />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Global Animations */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) scale(var(--tw-scale-x)); }
+          50% { transform: translateY(-15px) scale(var(--tw-scale-x)); }
+        }
+        .animate-float {
+          animation-name: float;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+        }
+      `}</style>
+    </div>
+  );
+}
