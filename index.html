@@ -4,33 +4,80 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cielo di Pensieri - Thought Cloud</title>
-
-    <!-- Tailwind -->
+    <!-- Load Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Custom Styles -->
+    <!-- Load Custom Styles -->
     <link rel="stylesheet" href="style.css">
-
-    <!-- Fonts -->
+    
+    <!-- Use Inter font family -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
+            /* Using Playfair Display for the serif look */
         }
     </style>
 </head>
-
 <body class="relative min-h-screen w-full overflow-hidden selection:bg-pink-200">
 
-    <!-- Background -->
+    <!-- Background Sky -->
     <div class="fixed inset-0 z-0 bg-gradient-to-br from-[#A7C7E7] via-[#E2EAF4] to-[#FAD4C0] pointer-events-none">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/aged-paper.png')] opacity-20 mix-blend-multiply"></div>
     </div>
 
-    <!-- App Root -->
+    <!-- Main Application Container -->
     <div id="app-root" class="relative z-10 w-full min-h-screen flex flex-col items-center">
+        <!-- Header will be inserted here by JS -->
         <header id="header-container" class="w-full p-6 flex justify-between items-center z-50"></header>
+
+        <!-- Admin Panel will be inserted here by JS -->
         <div id="admin-panel-container" class="w-full"></div>
 
+        <!-- Main Cloud Display Area -->
         <main id="cloud-display-area" class="w-full flex-grow flex items-center justify-center p-4">
+            <!-- Loading message / Clouds will be inserted here by JS -->
             <div id="loading-message" class="text-slate-500 animate-pulse font-serif italic text-xl">
+                Initializing app and fetching data...
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals Container (Submission and Password) -->
+    <div id="modals-container">
+        <!-- Modals will be rendered here by JS -->
+    </div>
+
+    <!-- Import Lucide Icons (used by JS) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Load Firebase SDKs as modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken,
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            query, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Expose Firebase functions globally for script.js (since it's not a true module context)
+        // In a GitHub Pages scenario, using the window object is often the most straightforward way
+        window.firebase = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp
+        };
+    </script>
+
+    <!-- Load the main application logic -->
+    <script type="module" src="script.js"></script>
+
+</body>
+</html>
