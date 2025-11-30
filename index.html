@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cielo di Pensieri - Thought Cloud</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Fonts -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="relative min-h-screen w-full overflow-hidden selection:bg-pink-200">
+
+    <!-- Background -->
+    <div class="fixed inset-0 z-0 bg-gradient-to-br from-[#A7C7E7] via-[#E2EAF4] to-[#FAD4C0] pointer-events-none">
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/aged-paper.png')] opacity-20 mix-blend-multiply"></div>
+    </div>
+
+    <!-- App Root -->
+    <div id="app-root" class="relative z-10 w-full min-h-screen flex flex-col items-center">
+        <header id="header-container" class="w-full p-6 flex justify-between items-center z-50"></header>
+        <div id="admin-panel-container" class="w-full"></div>
+
+        <main id="cloud-display-area" class="w-full flex-grow flex items-center justify-center p-4">
+            <div id="loading-message" class="text-slate-500 animate-pulse font-serif italic text-xl">
